@@ -12,3 +12,4 @@ export {
   NODE_OBJECTS_OFFSET,
   MAX_OBJECTS_PER_NODE,
 } from './octree-node.js';
+export { Octree } from './octree.js';
