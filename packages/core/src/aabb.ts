@@ -59,6 +59,37 @@ export class AABBPool {
 }
 
 /**
+ * Expand AABB `a` in-place so it also fully contains AABB `b`.
+ */
+export function aabbExpand(pool: AABBPool, a: number, b: number): void {
+  const buf = (pool as unknown as { buffer: Float32Array }).buffer;
+  const aOff = a * AABB_STRIDE;
+  const bOff = b * AABB_STRIDE;
+  buf[aOff] = Math.min(buf[aOff] ?? 0, buf[bOff] ?? 0);
+  buf[aOff + 1] = Math.min(buf[aOff + 1] ?? 0, buf[bOff + 1] ?? 0);
+  buf[aOff + 2] = Math.min(buf[aOff + 2] ?? 0, buf[bOff + 2] ?? 0);
+  buf[aOff + 3] = Math.max(buf[aOff + 3] ?? 0, buf[bOff + 3] ?? 0);
+  buf[aOff + 4] = Math.max(buf[aOff + 4] ?? 0, buf[bOff + 4] ?? 0);
+  buf[aOff + 5] = Math.max(buf[aOff + 5] ?? 0, buf[bOff + 5] ?? 0);
+}
+
+/**
+ * Merge AABBs `a` and `b` into `dest` (a pre-allocated slot), storing their union.
+ */
+export function aabbMerge(pool: AABBPool, dest: number, a: number, b: number): void {
+  const buf = (pool as unknown as { buffer: Float32Array }).buffer;
+  const aOff = a * AABB_STRIDE;
+  const bOff = b * AABB_STRIDE;
+  const dOff = dest * AABB_STRIDE;
+  buf[dOff] = Math.min(buf[aOff] ?? 0, buf[bOff] ?? 0);
+  buf[dOff + 1] = Math.min(buf[aOff + 1] ?? 0, buf[bOff + 1] ?? 0);
+  buf[dOff + 2] = Math.min(buf[aOff + 2] ?? 0, buf[bOff + 2] ?? 0);
+  buf[dOff + 3] = Math.max(buf[aOff + 3] ?? 0, buf[bOff + 3] ?? 0);
+  buf[dOff + 4] = Math.max(buf[aOff + 4] ?? 0, buf[bOff + 4] ?? 0);
+  buf[dOff + 5] = Math.max(buf[aOff + 5] ?? 0, buf[bOff + 5] ?? 0);
+}
+
+/**
  * Test whether two AABBs (by index in the same pool) intersect.
  */
 export function aabbIntersects(pool: AABBPool, a: number, b: number): boolean {
