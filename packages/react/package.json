@@ -1,6 +1,6 @@
 {
   "name": "@spatial-engine/react",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "React Three Fiber adapter for @spatial-engine/core",
   "author": "Francisco Rueda Esquivel",
   "license": "MIT",

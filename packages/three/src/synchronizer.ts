@@ -22,6 +22,7 @@ export class ThreeSynchronizer {
   private readonly aabbPool: AABBPool;
   private readonly _box: Box3 = new Box3();
   private _inserted: boolean = false;
+  private _disposed: boolean = false;
 
   constructor(object: Mesh | Group, octree: Octree, aabbPool: AABBPool) {
     this.object = object;
@@ -35,6 +36,7 @@ export class ThreeSynchronizer {
    * Octree. Call this whenever the object may have moved or changed shape.
    */
   sync(): void {
+    if (this._disposed) return;
     this._box.setFromObject(this.object);
     const { min, max } = this._box;
 
@@ -44,6 +46,19 @@ export class ThreeSynchronizer {
       this._inserted = true;
     } else {
       this.octree.update(this.id, min.x, min.y, min.z, max.x, max.y, max.z);
+    }
+  }
+
+  /**
+   * Remove this object from the octree and mark the synchronizer as
+   * disposed. After calling this, further `sync()` calls are no-ops.
+   */
+  dispose(): void {
+    if (this._disposed) return;
+    this._disposed = true;
+    if (this._inserted) {
+      this.octree.remove(this.id);
+      this._inserted = false;
     }
   }
 }

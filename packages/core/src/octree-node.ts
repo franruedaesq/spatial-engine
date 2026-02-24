@@ -14,7 +14,7 @@ export const NODE_FIRST_CHILD_OFFSET = 6;
 export const NODE_PARENT_OFFSET = 7;
 export const NODE_OBJECT_COUNT_OFFSET = 8;
 export const NODE_OBJECTS_OFFSET = 9;
-export const MAX_OBJECTS_PER_NODE = 8;
+export const MAX_OBJECTS_PER_NODE = 64;
 export const NODE_STRIDE = NODE_OBJECTS_OFFSET + MAX_OBJECTS_PER_NODE;
 
 /**

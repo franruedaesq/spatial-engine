@@ -117,6 +117,17 @@ export class Octree {
   }
 
   /**
+   * Remove the object at `objectIndex` from the tree.
+   * Safe to call even if the object was never inserted (no-op).
+   */
+  remove(objectIndex: number): void {
+    const nodeIdx = this.objectNodeMap.get(objectIndex);
+    if (nodeIdx === undefined) return;
+    this.nodePool.removeObject(nodeIdx, objectIndex);
+    this.objectNodeMap.delete(objectIndex);
+  }
+
+  /**
    * Cast a ray through the octree and return the closest intersecting object.
    *
    * Uses an iterative stack traversal (pre-allocated, no recursion) to avoid
