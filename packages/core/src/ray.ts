@@ -56,10 +56,16 @@ export class RayPool {
 }
 
 /**
- * Slab-method ray–AABB intersection test.
+ * Optimized branchless slab-method ray–AABB intersection test.
  *
- * Returns the parametric hit distance `t` (>= 0) or -1 if no intersection.
- * Accesses the raw buffer via a cast for zero-allocation hot paths.
+ * Operates purely on flat Float32Arrays with no per-axis direction branches.
+ * When a direction component is zero, IEEE 754 produces ±Infinity for the
+ * reciprocal, which propagates correctly through the min/max slab computation:
+ *   - origin inside the slab  → [−∞, +∞] interval (no constraint)
+ *   - origin outside the slab → either [+∞, +∞] or [−∞, −∞] → forces a miss
+ *
+ * Returns the parametric hit distance `t` (>= 0) if the ray intersects the
+ * AABB, or -1 if there is no intersection (miss or box entirely behind origin).
  */
 export function rayIntersectsAABB(
   rayBuf: Float32Array,
@@ -70,9 +76,9 @@ export function rayIntersectsAABB(
   const ox = rayBuf[rayOffset] ?? 0;
   const oy = rayBuf[rayOffset + 1] ?? 0;
   const oz = rayBuf[rayOffset + 2] ?? 0;
-  const dx = rayBuf[rayOffset + 3] ?? 0;
-  const dy = rayBuf[rayOffset + 4] ?? 0;
-  const dz = rayBuf[rayOffset + 5] ?? 0;
+  const idx = 1 / (rayBuf[rayOffset + 3] ?? 0);
+  const idy = 1 / (rayBuf[rayOffset + 4] ?? 0);
+  const idz = 1 / (rayBuf[rayOffset + 5] ?? 0);
 
   const minX = aabbBuf[aabbOffset] ?? 0;
   const minY = aabbBuf[aabbOffset + 1] ?? 0;
@@ -81,42 +87,17 @@ export function rayIntersectsAABB(
   const maxY = aabbBuf[aabbOffset + 4] ?? 0;
   const maxZ = aabbBuf[aabbOffset + 5] ?? 0;
 
-  // Slab method: compute per-axis t intervals.
-  // When direction component is 0, use ±Infinity unless origin is outside the
-  // slab (in which case there can be no intersection on that axis).
-  let tmin = -Infinity;
-  let tmax = Infinity;
+  // Branchless slab method: per-axis near/far t values.
+  const t1x = (minX - ox) * idx;
+  const t2x = (maxX - ox) * idx;
+  const t1y = (minY - oy) * idy;
+  const t2y = (maxY - oy) * idy;
+  const t1z = (minZ - oz) * idz;
+  const t2z = (maxZ - oz) * idz;
 
-  if (dx !== 0) {
-    const invDx = 1 / dx;
-    const t1 = (minX - ox) * invDx;
-    const t2 = (maxX - ox) * invDx;
-    tmin = Math.max(tmin, Math.min(t1, t2));
-    tmax = Math.min(tmax, Math.max(t1, t2));
-  } else if (ox < minX || ox > maxX) {
-    return -1;
-  }
+  const tmin = Math.max(Math.min(t1x, t2x), Math.min(t1y, t2y), Math.min(t1z, t2z));
+  const tmax = Math.min(Math.max(t1x, t2x), Math.max(t1y, t2y), Math.max(t1z, t2z));
 
-  if (dy !== 0) {
-    const invDy = 1 / dy;
-    const t1 = (minY - oy) * invDy;
-    const t2 = (maxY - oy) * invDy;
-    tmin = Math.max(tmin, Math.min(t1, t2));
-    tmax = Math.min(tmax, Math.max(t1, t2));
-  } else if (oy < minY || oy > maxY) {
-    return -1;
-  }
-
-  if (dz !== 0) {
-    const invDz = 1 / dz;
-    const t1 = (minZ - oz) * invDz;
-    const t2 = (maxZ - oz) * invDz;
-    tmin = Math.max(tmin, Math.min(t1, t2));
-    tmax = Math.min(tmax, Math.max(t1, t2));
-  } else if (oz < minZ || oz > maxZ) {
-    return -1;
-  }
-
-  if (tmax < 0 || tmin > tmax) return -1;
+  if (tmax < 0 || !(tmin <= tmax)) return -1;
   return tmin >= 0 ? tmin : tmax;
 }
