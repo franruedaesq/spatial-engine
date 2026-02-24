@@ -13,3 +13,14 @@ export {
   MAX_OBJECTS_PER_NODE,
 } from './octree-node.js';
 export { Octree } from './octree.js';
+export {
+  createLidarProcessor,
+} from './lidar-worker.js';
+export type {
+  LidarInitMessage,
+  LidarSweepMessage,
+  LidarWorkerInMessage,
+  LidarReadyMessage,
+  LidarDoneMessage,
+  LidarWorkerOutMessage,
+} from './lidar-worker.js';

@@ -7,13 +7,28 @@ export const AABB_STRIDE = 6;
 /**
  * A pool-backed, zero-GC AABB store.
  * Each AABB occupies AABB_STRIDE floats in the underlying buffer.
+ *
+ * When a `SharedArrayBuffer` is provided, the pool's data is accessible from
+ * multiple threads (e.g. a Web Worker) with no copying.
  */
 export class AABBPool {
   private readonly buffer: Float32Array;
   private count: number = 0;
 
-  constructor(capacity: number) {
-    this.buffer = new Float32Array(capacity * AABB_STRIDE);
+  constructor(capacity: number, sharedBuffer?: SharedArrayBuffer) {
+    this.buffer = sharedBuffer
+      ? new Float32Array(sharedBuffer, 0, capacity * AABB_STRIDE)
+      : new Float32Array(capacity * AABB_STRIDE);
+  }
+
+  /**
+   * Create an AABBPool backed by a new `SharedArrayBuffer`.
+   * Both the pool and the underlying `SharedArrayBuffer` are returned so the
+   * caller can transfer the buffer to a `Worker` via `postMessage`.
+   */
+  static createShared(capacity: number): { pool: AABBPool; sab: SharedArrayBuffer } {
+    const sab = new SharedArrayBuffer(capacity * AABB_STRIDE * Float32Array.BYTES_PER_ELEMENT);
+    return { pool: new AABBPool(capacity, sab), sab };
   }
 
   /** Allocate a new AABB slot and return its index. */
