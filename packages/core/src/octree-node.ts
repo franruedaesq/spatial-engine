@@ -133,4 +133,23 @@ export class OctreeNodePool {
   clearObjects(index: number): void {
     this.buffer[index * NODE_STRIDE + NODE_OBJECT_COUNT_OFFSET] = 0;
   }
+
+  /**
+   * Remove a single object index from the node's object list.
+   * Uses swap-with-last to avoid shifting. Returns true if found and removed.
+   */
+  removeObject(index: number, objectIndex: number): boolean {
+    const countOff = index * NODE_STRIDE + NODE_OBJECT_COUNT_OFFSET;
+    const count = this.buffer[countOff] ?? 0;
+    const baseOff = index * NODE_STRIDE + NODE_OBJECTS_OFFSET;
+    for (let i = 0; i < count; i++) {
+      if (this.buffer[baseOff + i] === objectIndex) {
+        // Swap with the last element, then decrement count.
+        this.buffer[baseOff + i] = this.buffer[baseOff + count - 1] ?? 0;
+        this.buffer[countOff] = count - 1;
+        return true;
+      }
+    }
+    return false;
+  }
 }

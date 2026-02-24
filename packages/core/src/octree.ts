@@ -14,6 +14,8 @@ export class Octree {
   private readonly nodePool: OctreeNodePool;
   private readonly aabbPool: AABBPool;
   private readonly root: number;
+  /** Tracks which node each object (by AABBPool index) is currently stored in. */
+  private readonly objectNodeMap: Map<number, number> = new Map();
 
   constructor(nodePool: OctreeNodePool, aabbPool: AABBPool) {
     this.nodePool = nodePool;
@@ -43,6 +45,50 @@ export class Octree {
     this.insertIntoNode(this.root, objectIndex);
   }
 
+  /**
+   * Update the AABB at `objectIndex` with new bounds and reposition it in the
+   * tree without rebuilding. If the new bounds still fit in the current node
+   * the object stays there; otherwise it is removed and re-inserted from the
+   * lowest ancestor whose bounds fully contain the new AABB.
+   */
+  update(
+    objectIndex: number,
+    newMinX: number,
+    newMinY: number,
+    newMinZ: number,
+    newMaxX: number,
+    newMaxY: number,
+    newMaxZ: number,
+  ): void {
+    const np = this.nodePool;
+    const ap = this.aabbPool;
+
+    // 1. Update the AABB data.
+    ap.set(objectIndex, newMinX, newMinY, newMinZ, newMaxX, newMaxY, newMaxZ);
+
+    // 2. Find current node.
+    const currentNode = this.objectNodeMap.get(objectIndex);
+    if (currentNode === undefined) return;
+
+    // 3. If the new bounds still fit in the current node, nothing to move.
+    if (this.fitsInNode(objectIndex, currentNode)) return;
+
+    // 4. Remove from current node.
+    np.removeObject(currentNode, objectIndex);
+    this.objectNodeMap.delete(objectIndex);
+
+    // 5. Walk up to find the lowest ancestor that fully contains the new bounds.
+    let ancestorNode = np.getParent(currentNode);
+    while (ancestorNode !== -1 && !this.fitsInNode(objectIndex, ancestorNode)) {
+      ancestorNode = np.getParent(ancestorNode);
+    }
+    // If no ancestor fits (shouldn't happen for a well-formed tree), use root.
+    if (ancestorNode === -1) ancestorNode = this.root;
+
+    // 6. Re-insert downward from the ancestor.
+    this.insertIntoNode(ancestorNode, objectIndex);
+  }
+
   // ── Private helpers ──────────────────────────────────────────────────────
 
   private insertIntoNode(nodeIdx: number, objectIndex: number): void {
@@ -59,6 +105,7 @@ export class Octree {
       }
       // Object straddles one or more boundaries – keep it at this level.
       np.addObject(nodeIdx, objectIndex);
+      this.objectNodeMap.set(objectIndex, nodeIdx);
       return;
     }
 
@@ -66,6 +113,7 @@ export class Octree {
     const count = np.getObjectCount(nodeIdx);
     if (count < MAX_OBJECTS_PER_NODE) {
       np.addObject(nodeIdx, objectIndex);
+      this.objectNodeMap.set(objectIndex, nodeIdx);
     } else {
       // Capacity reached: subdivide, then retry the insertion.
       this.subdivide(nodeIdx);
@@ -118,18 +166,9 @@ export class Octree {
     np.clearObjects(nodeIdx);
 
     for (const obj of saved) {
-      let pushed = false;
-      for (let i = 0; i < 8; i++) {
-        if (this.fitsInNode(obj, firstChild + i)) {
-          np.addObject(firstChild + i, obj);
-          pushed = true;
-          break;
-        }
-      }
-      if (!pushed) {
-        // Straddles a boundary – keep in the (now-internal) parent.
-        np.addObject(nodeIdx, obj);
-      }
+      // Use insertIntoNode so objectNodeMap stays consistent.
+      this.objectNodeMap.delete(obj);
+      this.insertIntoNode(nodeIdx, obj);
     }
   }
 
