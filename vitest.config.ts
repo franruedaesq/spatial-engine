@@ -6,6 +6,7 @@ export default defineConfig({
     alias: {
       '@spatial-engine/core': path.resolve(__dirname, 'packages/core/src/index.ts'),
       '@spatial-engine/three': path.resolve(__dirname, 'packages/three/src/index.ts'),
+      '@spatial-engine/react': path.resolve(__dirname, 'packages/react/src/index.ts'),
     },
   },
   test: {
