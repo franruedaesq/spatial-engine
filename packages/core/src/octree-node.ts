@@ -128,4 +128,9 @@ export class OctreeNodePool {
   getObject(index: number, slot: number): number {
     return this.buffer[index * NODE_STRIDE + NODE_OBJECTS_OFFSET + slot] ?? 0;
   }
+
+  /** Reset the object count of the given node to zero (does not zero the slots). */
+  clearObjects(index: number): void {
+    this.buffer[index * NODE_STRIDE + NODE_OBJECT_COUNT_OFFSET] = 0;
+  }
 }
