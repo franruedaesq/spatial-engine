@@ -4,13 +4,29 @@
  */
 export const RAY_STRIDE = 6;
 
-/** A pool-backed, zero-GC Ray store. */
+/** A pool-backed, zero-GC Ray store.
+ *
+ * When a `SharedArrayBuffer` is provided, the pool's data is accessible from
+ * multiple threads (e.g. a Web Worker) with no copying.
+ */
 export class RayPool {
   private readonly buffer: Float32Array;
   private count: number = 0;
 
-  constructor(capacity: number) {
-    this.buffer = new Float32Array(capacity * RAY_STRIDE);
+  constructor(capacity: number, sharedBuffer?: SharedArrayBuffer) {
+    this.buffer = sharedBuffer
+      ? new Float32Array(sharedBuffer, 0, capacity * RAY_STRIDE)
+      : new Float32Array(capacity * RAY_STRIDE);
+  }
+
+  /**
+   * Create a RayPool backed by a new `SharedArrayBuffer`.
+   * Both the pool and the underlying `SharedArrayBuffer` are returned so the
+   * caller can transfer the buffer to a `Worker` via `postMessage`.
+   */
+  static createShared(capacity: number): { pool: RayPool; sab: SharedArrayBuffer } {
+    const sab = new SharedArrayBuffer(capacity * RAY_STRIDE * Float32Array.BYTES_PER_ELEMENT);
+    return { pool: new RayPool(capacity, sab), sab };
   }
 
   /** Allocate a new Ray slot and return its index. */

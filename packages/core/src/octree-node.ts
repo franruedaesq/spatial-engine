@@ -20,13 +20,28 @@ export const NODE_STRIDE = NODE_OBJECTS_OFFSET + MAX_OBJECTS_PER_NODE;
 /**
  * A pool-backed, zero-GC Octree node store.
  * Each node occupies NODE_STRIDE floats in the underlying Float32Array buffer.
+ *
+ * When a `SharedArrayBuffer` is provided, the pool's data is accessible from
+ * multiple threads (e.g. a Web Worker) with no copying.
  */
 export class OctreeNodePool {
   private readonly buffer: Float32Array;
   private count: number = 0;
 
-  constructor(capacity: number) {
-    this.buffer = new Float32Array(capacity * NODE_STRIDE);
+  constructor(capacity: number, sharedBuffer?: SharedArrayBuffer) {
+    this.buffer = sharedBuffer
+      ? new Float32Array(sharedBuffer, 0, capacity * NODE_STRIDE)
+      : new Float32Array(capacity * NODE_STRIDE);
+  }
+
+  /**
+   * Create an OctreeNodePool backed by a new `SharedArrayBuffer`.
+   * Both the pool and the underlying `SharedArrayBuffer` are returned so the
+   * caller can transfer the buffer to a `Worker` via `postMessage`.
+   */
+  static createShared(capacity: number): { pool: OctreeNodePool; sab: SharedArrayBuffer } {
+    const sab = new SharedArrayBuffer(capacity * NODE_STRIDE * Float32Array.BYTES_PER_ELEMENT);
+    return { pool: new OctreeNodePool(capacity, sab), sab };
   }
 
   /** Allocate a new node slot, initialise sentinel values, and return its index. */
