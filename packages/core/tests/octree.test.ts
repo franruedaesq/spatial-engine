@@ -17,19 +17,29 @@ function makeAABB(
   return idx;
 }
 
-/** One small AABB placed firmly inside each of the 8 octants of [-50,50]^3. */
-function makeOctantItems(aabbPool: AABBPool): number[] {
+/** Distribute small AABBs evenly across the 8 octants to reliably exceed any threshold. */
+function makeOctantItems(aabbPool: AABBPool, countNeeded: number): number[] {
   const signs = [-1, 1] as const;
   const items: number[] = [];
-  for (const sx of signs) {
-    for (const sy of signs) {
-      for (const sz of signs) {
-        const x = sx * 40;
-        const y = sy * 40;
-        const z = sz * 40;
-        items.push(makeAABB(aabbPool, x, y, z, x + 1, y + 1, z + 1));
+  let inserted = 0;
+
+  // Keep layering items into the 8 octants until we have enough
+  let layer = 0;
+  while (inserted < countNeeded) {
+    for (const sx of signs) {
+      for (const sy of signs) {
+        for (const sz of signs) {
+          if (inserted >= countNeeded) break;
+          // shift each layer slightly inward so they don't perfectly overlap
+          const x = sx * (40 - layer);
+          const y = sy * (40 - layer);
+          const z = sz * (40 - layer);
+          items.push(makeAABB(aabbPool, x, y, z, x + 1, y + 1, z + 1));
+          inserted++;
+        }
       }
     }
+    layer++;
   }
   return items;
 }
@@ -55,11 +65,11 @@ describe('Octree – insertion and subdivision', () => {
     const octree = new Octree(nodePool, aabbPool);
     octree.setBounds(-50, -50, -50, 50, 50, 50);
 
-    // Insert one item per octant so redistribution spreads across all 8 children.
-    for (const item of makeOctantItems(aabbPool)) {
+    // Insert MAX_OBJECTS_PER_NODE items spread across octants
+    for (const item of makeOctantItems(aabbPool, MAX_OBJECTS_PER_NODE)) {
       octree.insert(item);
     }
-    // 9th item triggers subdivision of the root.
+    // MAX_OBJECTS_PER_NODE + 1 item triggers subdivision of the root.
     octree.insert(makeAABB(aabbPool, 1, 1, 1, 2, 2, 2));
 
     const firstChild = nodePool.getFirstChild(octree.rootIndex);
@@ -78,7 +88,7 @@ describe('Octree – insertion and subdivision', () => {
     const octree = new Octree(nodePool, aabbPool);
     octree.setBounds(-50, -50, -50, 50, 50, 50);
 
-    for (const item of makeOctantItems(aabbPool)) {
+    for (const item of makeOctantItems(aabbPool, MAX_OBJECTS_PER_NODE)) {
       octree.insert(item);
     }
 
@@ -108,7 +118,7 @@ describe('Octree – insertion and subdivision', () => {
     const octree = new Octree(nodePool, aabbPool);
     octree.setBounds(-50, -50, -50, 50, 50, 50);
 
-    for (const item of makeOctantItems(aabbPool)) {
+    for (const item of makeOctantItems(aabbPool, MAX_OBJECTS_PER_NODE)) {
       octree.insert(item);
     }
 

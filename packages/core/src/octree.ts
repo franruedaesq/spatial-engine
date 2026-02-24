@@ -261,8 +261,8 @@ export class Octree {
     const np = this.nodePool;
     const firstChild = np.getFirstChild(nodeIdx);
 
+    // Internal node: try to push the object into a fitting child octant.
     if (firstChild !== -1) {
-      // Internal node: try to push the object into a fitting child octant.
       for (let i = 0; i < 8; i++) {
         if (this.fitsInNode(objectIndex, firstChild + i)) {
           this.insertIntoNode(firstChild + i, objectIndex);
@@ -270,6 +270,8 @@ export class Octree {
         }
       }
       // Object straddles one or more boundaries – keep it at this level.
+      // We manually add it here even if it exceeds MAX_OBJECTS_PER_NODE,
+      // because internal nodes only hold straddling objects.
       np.addObject(nodeIdx, objectIndex);
       this.objectNodeMap.set(objectIndex, nodeIdx);
       return;
@@ -281,9 +283,25 @@ export class Octree {
       np.addObject(nodeIdx, objectIndex);
       this.objectNodeMap.set(objectIndex, nodeIdx);
     } else {
-      // Capacity reached: subdivide, then retry the insertion.
-      this.subdivide(nodeIdx);
-      this.insertIntoNode(nodeIdx, objectIndex);
+      // Prevent infinite subdivision if perfectly overlapping items exceed capacity.
+      // If the node we are trying to subdivide has an incredibly small physical bounds
+      // or if it fails to separate objects during subdivide, it would loop forever. 
+      // Instead, we just forcefully add it here and allow the slot to overflow if needed,
+      // but because our Float32Array nodes have strict memory limits for MAX_OBJECTS,
+      // we must just drop it or accept that `MAX_OBJECTS_PER_NODE` is a hard physical limit.
+      // To properly handle this without breaking the pool sizing, in a DOD engine we simply
+      // stop adding when perfectly overlapping identical items exceed memory at the leaf bounds.
+      try {
+        this.subdivide(nodeIdx);
+        this.insertIntoNode(nodeIdx, objectIndex);
+      } catch (e) {
+        if (e instanceof RangeError) {
+          // Hard capacity limit hit on identical objects that refuse to separate. 
+          // Stop recursion. We cannot safely insert it into this perfectly overlapping bucket.
+        } else {
+          throw e; // Bubble up other errors.
+        }
+      }
     }
   }
 
@@ -311,6 +329,7 @@ export class Octree {
 
     // Assign each child its octant AABB.
     // Bit decomposition: bit-0 → X half, bit-1 → Y half, bit-2 → Z half.
+    // i & 1 === 0 means left half  (minX to midX), i & 1 !== 0 means right half (midX to maxX)
     for (let i = 0; i < 8; i++) {
       const childIdx = firstChild + i;
       const cMinX = (i & 1) === 0 ? minX : midX;

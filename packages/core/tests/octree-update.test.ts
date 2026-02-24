@@ -1,7 +1,34 @@
 import { describe, it, expect } from 'vitest';
 import { Octree } from '../src/octree.js';
-import { OctreeNodePool } from '../src/octree-node.js';
+import { OctreeNodePool, MAX_OBJECTS_PER_NODE } from '../src/octree-node.js';
 import { AABBPool } from '../src/aabb.js';
+
+/** Distribute small AABBs evenly across the 8 octants to reliably exceed any threshold. */
+function makeOctantItems(aabbPool: AABBPool, countNeeded: number): number[] {
+  const signs = [-1, 1] as const;
+  const items: number[] = [];
+  let inserted = 0;
+
+  // Keep layering items into the 8 octants until we have enough
+  let layer = 0;
+  while (inserted < countNeeded) {
+    for (const sx of signs) {
+      for (const sy of signs) {
+        for (const sz of signs) {
+          if (inserted >= countNeeded) break;
+          // shift each layer slightly inward so they don't perfectly overlap
+          const x = sx * (40 - layer);
+          const y = sy * (40 - layer);
+          const z = sz * (40 - layer);
+          items.push(makeAABB(aabbPool, x, y, z, x + 1, y + 1, z + 1));
+          inserted++;
+        }
+      }
+    }
+    layer++;
+  }
+  return items;
+}
 
 function makeAABB(
   pool: AABBPool,
@@ -64,18 +91,7 @@ describe('Octree – dynamic updates (update)', () => {
     octree.setBounds(-50, -50, -50, 50, 50, 50);
 
     // Insert enough objects to trigger subdivision.
-    const objects: number[] = [];
-    const signs = [-1, 1] as const;
-    for (const sx of signs) {
-      for (const sy of signs) {
-        for (const sz of signs) {
-          const x = sx * 40;
-          const y = sy * 40;
-          const z = sz * 40;
-          objects.push(makeAABB(aabbPool, x, y, z, x + 1, y + 1, z + 1));
-        }
-      }
-    }
+    const objects = makeOctantItems(aabbPool, MAX_OBJECTS_PER_NODE);
     for (const o of objects) octree.insert(o);
     // One more to trigger subdivision.
     const extra = makeAABB(aabbPool, 1, 1, 1, 2, 2, 2);
@@ -95,18 +111,8 @@ describe('Octree – dynamic updates (update)', () => {
     const octree = new Octree(nodePool, aabbPool);
     octree.setBounds(-50, -50, -50, 50, 50, 50);
 
-    // Force subdivision by inserting 9 spread items.
-    const signs = [-1, 1] as const;
-    for (const sx of signs) {
-      for (const sy of signs) {
-        for (const sz of signs) {
-          const x = sx * 40;
-          const y = sy * 40;
-          const z = sz * 40;
-          octree.insert(makeAABB(aabbPool, x, y, z, x + 1, y + 1, z + 1));
-        }
-      }
-    }
+    const objects = makeOctantItems(aabbPool, MAX_OBJECTS_PER_NODE);
+    for (const o of objects) octree.insert(o);
     const obj = makeAABB(aabbPool, 10, 10, 10, 11, 11, 11);
     octree.insert(obj);
 
@@ -131,18 +137,9 @@ describe('Octree – dynamic updates (update)', () => {
     const octree = new Octree(nodePool, aabbPool);
     octree.setBounds(-50, -50, -50, 50, 50, 50);
 
-    const signs = [-1, 1] as const;
-    for (const sx of signs) {
-      for (const sy of signs) {
-        for (const sz of signs) {
-          const x = sx * 40;
-          const y = sy * 40;
-          const z = sz * 40;
-          octree.insert(makeAABB(aabbPool, x, y, z, x + 1, y + 1, z + 1));
-        }
-      }
-    }
-    // 9th item: starts in the (+,+,+) region.
+    const objects = makeOctantItems(aabbPool, MAX_OBJECTS_PER_NODE);
+    for (const o of objects) octree.insert(o);
+    // MAX_OBJECTS_PER_NODE + 1 item: starts in the (+,+,+) region.
     const obj = makeAABB(aabbPool, 10, 10, 10, 11, 11, 11);
     octree.insert(obj);
 
@@ -167,17 +164,8 @@ describe('Octree – dynamic updates (update)', () => {
     const octree = new Octree(nodePool, aabbPool);
     octree.setBounds(-50, -50, -50, 50, 50, 50);
 
-    const signs = [-1, 1] as const;
-    for (const sx of signs) {
-      for (const sy of signs) {
-        for (const sz of signs) {
-          const x = sx * 40;
-          const y = sy * 40;
-          const z = sz * 40;
-          octree.insert(makeAABB(aabbPool, x, y, z, x + 1, y + 1, z + 1));
-        }
-      }
-    }
+    const objects = makeOctantItems(aabbPool, MAX_OBJECTS_PER_NODE);
+    for (const o of objects) octree.insert(o);
     const obj = makeAABB(aabbPool, 10, 10, 10, 11, 11, 11);
     octree.insert(obj);
 
@@ -196,17 +184,8 @@ describe('Octree – dynamic updates (update)', () => {
     const octree = new Octree(nodePool, aabbPool);
     octree.setBounds(-50, -50, -50, 50, 50, 50);
 
-    const signs = [-1, 1] as const;
-    for (const sx of signs) {
-      for (const sy of signs) {
-        for (const sz of signs) {
-          const x = sx * 40;
-          const y = sy * 40;
-          const z = sz * 40;
-          octree.insert(makeAABB(aabbPool, x, y, z, x + 1, y + 1, z + 1));
-        }
-      }
-    }
+    const objects = makeOctantItems(aabbPool, MAX_OBJECTS_PER_NODE);
+    for (const o of objects) octree.insert(o);
     // Inserted in the (+,+,+) child octant.
     const obj = makeAABB(aabbPool, 10, 10, 10, 11, 11, 11);
     octree.insert(obj);
