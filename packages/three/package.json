@@ -1,0 +1,31 @@
+{
+  "name": "@spatial-engine/three",
+  "version": "0.0.1",
+  "description": "Three.js adapter for @spatial-engine/core",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@spatial-engine/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "three": ">=0.150.0"
+  },
+  "devDependencies": {
+    "three": "^0.166.1",
+    "@types/three": "^0.166.0"
+  }
+}
