@@ -1,5 +1,5 @@
 import { useRef, useEffect } from 'react';
-import { AABBPool, RayPool } from '@spatial-engine/core';
+import { AABBPool, RayPool, OctreeNodePool, Octree } from '@spatial-engine/core';
 
 export interface SpatialEngineOptions {
   /** Maximum number of AABBs to pre-allocate in the pool. Default: 1024 */
@@ -58,3 +58,66 @@ export function useSpatialEngine(
 
   return handleRef.current;
 }
+
+export interface OctreeOptions {
+  /** Number of octree node slots to pre-allocate. Default: 512 */
+  nodeCapacity?: number;
+  /** Number of object (AABB) slots to pre-allocate. Default: 512 */
+  objectCapacity?: number;
+}
+
+export interface OctreeHandle {
+  octree: Octree;
+  nodePool: OctreeNodePool;
+  aabbPool: AABBPool;
+  /** Reset both pools (call once per frame before re-populating). */
+  reset: () => void;
+}
+
+/**
+ * React hook that creates and manages a zero-GC Octree backed by flat
+ * Float32Array pools. The octree and pools are stable across renders.
+ * Call `handle.reset()` at the start of each animation frame to free all
+ * object allocations without triggering GC, then re-insert objects for that
+ * frame.
+ */
+export function useOctree(options: OctreeOptions = {}): OctreeHandle {
+  const { nodeCapacity = 512, objectCapacity = 512 } = options;
+
+  const handleRef = useRef<OctreeHandle | null>(null);
+
+  if (handleRef.current === null) {
+    const nodePool = new OctreeNodePool(nodeCapacity);
+    const aabbPool = new AABBPool(objectCapacity);
+    const octree = new Octree(nodePool, aabbPool);
+    handleRef.current = {
+      octree,
+      nodePool,
+      aabbPool,
+      reset: () => {
+        nodePool.reset();
+        aabbPool.reset();
+      },
+    };
+  }
+
+  // Re-create pools if capacity options change (rare but supported).
+  useEffect(() => {
+    const handle = handleRef.current;
+    if (handle === null) return;
+    const newNodePool = new OctreeNodePool(nodeCapacity);
+    const newAabbPool = new AABBPool(objectCapacity);
+    const newOctree = new Octree(newNodePool, newAabbPool);
+    handle.octree = newOctree;
+    handle.nodePool = newNodePool;
+    handle.aabbPool = newAabbPool;
+    handle.reset = () => {
+      newNodePool.reset();
+      newAabbPool.reset();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodeCapacity, objectCapacity]);
+
+  return handleRef.current;
+}
+
