@@ -3,6 +3,30 @@ import { AABBPool, AABB_STRIDE } from './aabb.js';
 import { rayIntersectsAABB } from './ray.js';
 
 /**
+ * Returns true when the AABB stored at `bufOffset` in `buf` overlaps the
+ * axis-aligned box defined by the six query scalars.
+ */
+function aabbOverlapsBox(
+  buf: Float32Array,
+  bufOffset: number,
+  qMinX: number,
+  qMinY: number,
+  qMinZ: number,
+  qMaxX: number,
+  qMaxY: number,
+  qMaxZ: number,
+): boolean {
+  return (
+    buf[bufOffset]! <= qMaxX &&
+    buf[bufOffset + 3]! >= qMinX &&
+    buf[bufOffset + 1]! <= qMaxY &&
+    buf[bufOffset + 4]! >= qMinY &&
+    buf[bufOffset + 2]! <= qMaxZ &&
+    buf[bufOffset + 5]! >= qMinZ
+  );
+}
+
+/**
  * Octree with insertion and automatic subdivision.
  *
  * - When a leaf node's object count reaches MAX_OBJECTS_PER_NODE it is
@@ -152,6 +176,72 @@ export class Octree {
 
     if (closestIndex === -1) return null;
     return { objectIndex: closestIndex, t: closestT };
+  }
+
+  /**
+   * Query the octree for all objects whose AABB overlaps the given axis-aligned
+   * box region and return their indices (in the AABBPool).
+   *
+   * Uses the same pre-allocated iterative stack as `raycast` to avoid GC
+   * pressure. Descends only into child nodes whose AABBs overlap the query box,
+   * pruning non-intersecting subtrees.
+   *
+   * @param minX  Minimum X of the query box.
+   * @param minY  Minimum Y of the query box.
+   * @param minZ  Minimum Z of the query box.
+   * @param maxX  Maximum X of the query box.
+   * @param maxY  Maximum Y of the query box.
+   * @param maxZ  Maximum Z of the query box.
+   * @returns Array of AABBPool indices for every object that overlaps the box.
+   */
+  queryBox(
+    minX: number,
+    minY: number,
+    minZ: number,
+    maxX: number,
+    maxY: number,
+    maxZ: number,
+  ): number[] {
+    const np = this.nodePool;
+    const npBuf = (np as unknown as { buffer: Float32Array }).buffer;
+    const apBuf = (this.aabbPool as unknown as { buffer: Float32Array }).buffer;
+
+    const results: number[] = [];
+
+    // Early-out: if the query box doesn't overlap the root, nothing to do.
+    if (!aabbOverlapsBox(npBuf, this.root * NODE_STRIDE + NODE_AABB_OFFSET, minX, minY, minZ, maxX, maxY, maxZ)) {
+      return results;
+    }
+
+    // Iterative DFS using the pre-allocated stack.
+    this._stack.length = 0;
+    this._stack.push(this.root);
+
+    while (this._stack.length > 0) {
+      const nodeIdx = this._stack.pop()!;
+
+      // Test every object stored at this node level.
+      const objCount = np.getObjectCount(nodeIdx);
+      for (let i = 0; i < objCount; i++) {
+        const objIdx = np.getObject(nodeIdx, i);
+        if (aabbOverlapsBox(apBuf, objIdx * AABB_STRIDE, minX, minY, minZ, maxX, maxY, maxZ)) {
+          results.push(objIdx);
+        }
+      }
+
+      // Push only children whose AABB overlaps the query box.
+      const firstChild = np.getFirstChild(nodeIdx);
+      if (firstChild !== -1) {
+        for (let i = 0; i < 8; i++) {
+          const childIdx = firstChild + i;
+          if (aabbOverlapsBox(npBuf, childIdx * NODE_STRIDE + NODE_AABB_OFFSET, minX, minY, minZ, maxX, maxY, maxZ)) {
+            this._stack.push(childIdx);
+          }
+        }
+      }
+    }
+
+    return results;
   }
 
   // ── Private helpers ──────────────────────────────────────────────────────
