@@ -1,6 +1,8 @@
 import type { Box3, Ray } from 'three';
 import { AABBPool, RayPool, rayIntersectsAABB, RAY_STRIDE } from '@spatial-engine/core';
 
+export { ThreeSynchronizer } from './synchronizer.js';
+
 /**
  * Convert a Three.js Box3 into an AABB slot in the pool.
  * Returns the allocated index.
@@ -35,6 +37,26 @@ export function threeRayToPool(pool: RayPool, ray: Ray): number {
     ray.direction.z,
   );
   return index;
+}
+
+/**
+ * Fill a pre-allocated (or newly created) Float32Array with the ray data in
+ * the flat format `[ox, oy, oz, dx, dy, dz]` expected by the core query engine.
+ *
+ * @param ray The Three.js Ray to convert.
+ * @param buf Optional pre-allocated Float32Array of length RAY_STRIDE (6).
+ *            If omitted a new buffer is created. Pass a cached buffer to
+ *            avoid allocation and stay zero-GC.
+ * @returns The filled buffer (same reference as `buf` when provided).
+ */
+export function rayToFlatArray(ray: Ray, buf: Float32Array = new Float32Array(RAY_STRIDE)): Float32Array {
+  buf[0] = ray.origin.x;
+  buf[1] = ray.origin.y;
+  buf[2] = ray.origin.z;
+  buf[3] = ray.direction.x;
+  buf[4] = ray.direction.y;
+  buf[5] = ray.direction.z;
+  return buf;
 }
 
 /**
