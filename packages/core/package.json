@@ -1,7 +1,27 @@
 {
   "name": "@spatial-engine/core",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "High-performance spatial partitioning and query library using Data-Oriented Design",
+  "author": "Francisco Rueda Esquivel",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/franruedaesq/spatial-engine.git",
+    "directory": "packages/core"
+  },
+  "keywords": [
+    "octree",
+    "spatial",
+    "aabb",
+    "raycast",
+    "lidar",
+    "data-oriented-design",
+    "float32array",
+    "3d",
+    "webworker",
+    "sharedarraybuffer",
+    "zero-gc"
+  ],
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -11,12 +31,20 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./lidar-worker": {
+      "types": "./dist/lidar-worker.d.ts",
+      "import": "./dist/lidar-worker.js",
+      "require": "./dist/lidar-worker.cjs"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm build"
   },
   "devDependencies": {}
 }

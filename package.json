@@ -6,7 +6,9 @@
     "build": "pnpm -r build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "check": "pnpm build && pnpm test && pnpm typecheck",
+    "publish:all": "pnpm check && pnpm -r publish --access public --no-git-checks"
   },
   "devDependencies": {
     "typescript": "^5.4.5",

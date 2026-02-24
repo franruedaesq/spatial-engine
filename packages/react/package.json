@@ -1,7 +1,26 @@
 {
   "name": "@spatial-engine/react",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "React Three Fiber adapter for @spatial-engine/core",
+  "author": "Francisco Rueda Esquivel",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/franruedaesq/spatial-engine.git",
+    "directory": "packages/react"
+  },
+  "keywords": [
+    "react",
+    "react-three-fiber",
+    "r3f",
+    "octree",
+    "spatial",
+    "aabb",
+    "hooks",
+    "3d",
+    "data-oriented-design",
+    "zero-gc"
+  ],
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -13,10 +32,13 @@
       "require": "./dist/index.cjs"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm build"
   },
   "dependencies": {
     "@spatial-engine/core": "workspace:*",
