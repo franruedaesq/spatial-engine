@@ -1,5 +1,6 @@
-import { OctreeNodePool, MAX_OBJECTS_PER_NODE } from './octree-node.js';
-import { AABBPool } from './aabb.js';
+import { OctreeNodePool, MAX_OBJECTS_PER_NODE, NODE_STRIDE, NODE_AABB_OFFSET } from './octree-node.js';
+import { AABBPool, AABB_STRIDE } from './aabb.js';
+import { rayIntersectsAABB } from './ray.js';
 
 /**
  * Octree with insertion and automatic subdivision.
@@ -16,6 +17,8 @@ export class Octree {
   private readonly root: number;
   /** Tracks which node each object (by AABBPool index) is currently stored in. */
   private readonly objectNodeMap: Map<number, number> = new Map();
+  /** Pre-allocated traversal stack reused across raycast calls to avoid GC pressure. */
+  private readonly _stack: number[] = [];
 
   constructor(nodePool: OctreeNodePool, aabbPool: AABBPool) {
     this.nodePool = nodePool;
@@ -87,6 +90,68 @@ export class Octree {
 
     // 6. Re-insert downward from the ancestor.
     this.insertIntoNode(ancestorNode, objectIndex);
+  }
+
+  /**
+   * Cast a ray through the octree and return the closest intersecting object.
+   *
+   * Uses an iterative stack traversal (pre-allocated, no recursion) to avoid
+   * GC pressure. Only descends into child nodes whose AABBs are intersected by
+   * the ray, providing efficient pruning of non-intersecting subtrees.
+   *
+   * @param rayBuf   Float32Array containing the ray data [ox,oy,oz,dx,dy,dz].
+   * @param rayOffset Element offset (in floats) within `rayBuf` to the ray's origin.
+   * @returns The closest `{ objectIndex, t }` hit, or `null` if nothing is hit.
+   */
+  raycast(
+    rayBuf: Float32Array,
+    rayOffset: number,
+  ): { objectIndex: number; t: number } | null {
+    const np = this.nodePool;
+    // Access the underlying flat buffers directly for zero-GC intersection tests.
+    const npBuf = (np as unknown as { buffer: Float32Array }).buffer;
+    const apBuf = (this.aabbPool as unknown as { buffer: Float32Array }).buffer;
+
+    // Early-out: test the root AABB before touching any object data.
+    if (rayIntersectsAABB(rayBuf, rayOffset, npBuf, this.root * NODE_STRIDE + NODE_AABB_OFFSET) < 0) {
+      return null;
+    }
+
+    // Iterative DFS using the pre-allocated stack.
+    this._stack.length = 0;
+    this._stack.push(this.root);
+
+    let closestT = Infinity;
+    let closestIndex = -1;
+
+    while (this._stack.length > 0) {
+      const nodeIdx = this._stack.pop()!;
+
+      // Test every object stored at this node level.
+      const objCount = np.getObjectCount(nodeIdx);
+      for (let i = 0; i < objCount; i++) {
+        const objIdx = np.getObject(nodeIdx, i);
+        const t = rayIntersectsAABB(rayBuf, rayOffset, apBuf, objIdx * AABB_STRIDE);
+        if (t >= 0 && t < closestT) {
+          closestT = t;
+          closestIndex = objIdx;
+        }
+      }
+
+      // Push only children whose AABB the ray actually intersects.
+      const firstChild = np.getFirstChild(nodeIdx);
+      if (firstChild !== -1) {
+        for (let i = 0; i < 8; i++) {
+          const childIdx = firstChild + i;
+          if (rayIntersectsAABB(rayBuf, rayOffset, npBuf, childIdx * NODE_STRIDE + NODE_AABB_OFFSET) >= 0) {
+            this._stack.push(childIdx);
+          }
+        }
+      }
+    }
+
+    if (closestIndex === -1) return null;
+    return { objectIndex: closestIndex, t: closestT };
   }
 
   // ── Private helpers ──────────────────────────────────────────────────────
