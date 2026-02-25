@@ -1,6 +1,6 @@
 {
   "name": "@spatial-engine/three",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Three.js adapter for @spatial-engine/core",
   "author": "Francisco Rueda Esquivel",
   "license": "MIT",

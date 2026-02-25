@@ -189,3 +189,93 @@ describe('Octree – insertion and subdivision', () => {
     expect(total).toBe(100);
   });
 });
+
+describe('Octree – clear()', () => {
+  it('resets nodePool to a single root node', () => {
+    const nodePool = new OctreeNodePool(512);
+    const aabbPool = new AABBPool(512);
+    const octree = new Octree(nodePool, aabbPool);
+    octree.setBounds(-50, -50, -50, 50, 50, 50);
+
+    for (const item of makeOctantItems(aabbPool, MAX_OBJECTS_PER_NODE + 8)) {
+      octree.insert(item);
+    }
+    expect(nodePool.size).toBeGreaterThan(1);
+
+    octree.clear();
+
+    expect(nodePool.size).toBe(1);
+  });
+
+  it('queryBox returns empty after clear()', () => {
+    const nodePool = new OctreeNodePool(512);
+    const aabbPool = new AABBPool(512);
+    const octree = new Octree(nodePool, aabbPool);
+    octree.setBounds(-50, -50, -50, 50, 50, 50);
+
+    for (let i = 0; i < 10; i++) {
+      const idx = aabbPool.allocate();
+      aabbPool.set(idx, i, i, i, i + 1, i + 1, i + 1);
+      octree.insert(idx);
+    }
+
+    octree.clear();
+    octree.setBounds(-50, -50, -50, 50, 50, 50);
+
+    const results = octree.queryBox(-50, -50, -50, 50, 50, 50);
+    expect(results).toHaveLength(0);
+  });
+
+  it('allows fresh insert and queryBox after clear()', () => {
+    const nodePool = new OctreeNodePool(512);
+    const aabbPool = new AABBPool(512);
+    const octree = new Octree(nodePool, aabbPool);
+    octree.setBounds(-50, -50, -50, 50, 50, 50);
+
+    const old = aabbPool.allocate();
+    aabbPool.set(old, 5, 5, 5, 6, 6, 6);
+    octree.insert(old);
+
+    octree.clear();
+    octree.setBounds(-50, -50, -50, 50, 50, 50);
+
+    const fresh = aabbPool.allocate();
+    aabbPool.set(fresh, 10, 10, 10, 11, 11, 11);
+    octree.insert(fresh);
+
+    const results = octree.queryBox(9, 9, 9, 12, 12, 12);
+    expect(results).toContain(fresh);
+  });
+
+  it('resets aabbPool size to 0 after clear()', () => {
+    const nodePool = new OctreeNodePool(512);
+    const aabbPool = new AABBPool(512);
+    const octree = new Octree(nodePool, aabbPool);
+    octree.setBounds(-50, -50, -50, 50, 50, 50);
+
+    aabbPool.allocate();
+    aabbPool.allocate();
+    expect(aabbPool.size).toBe(2);
+
+    octree.clear();
+
+    expect(aabbPool.size).toBe(0);
+  });
+
+  it('rootIndex is valid and the new root is a childless leaf with no objects', () => {
+    const nodePool = new OctreeNodePool(512);
+    const aabbPool = new AABBPool(512);
+    const octree = new Octree(nodePool, aabbPool);
+    octree.setBounds(-50, -50, -50, 50, 50, 50);
+
+    for (const item of makeOctantItems(aabbPool, MAX_OBJECTS_PER_NODE + 1)) {
+      octree.insert(item);
+    }
+
+    octree.clear();
+
+    expect(octree.rootIndex).toBe(0);
+    expect(nodePool.getFirstChild(octree.rootIndex)).toBe(-1);
+    expect(nodePool.getObjectCount(octree.rootIndex)).toBe(0);
+  });
+});

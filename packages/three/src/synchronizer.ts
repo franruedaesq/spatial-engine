@@ -60,5 +60,7 @@ export class ThreeSynchronizer {
       this.octree.remove(this.id);
       this._inserted = false;
     }
+    // Return the AABBPool slot so it can be reused by the next synchronizer.
+    this.aabbPool.release(this.id);
   }
 }

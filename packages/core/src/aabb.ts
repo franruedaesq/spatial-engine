@@ -4,6 +4,8 @@
  */
 export const AABB_STRIDE = 6;
 
+import { ObjectPool } from './object-pool.js';
+
 /**
  * A pool-backed, zero-GC AABB store.
  * Each AABB occupies AABB_STRIDE floats in the underlying buffer.
@@ -14,11 +16,17 @@ export const AABB_STRIDE = 6;
 export class AABBPool {
   private readonly buffer: Float32Array;
   private count: number = 0;
+  /** Free-list for individually released slots so they can be reused. */
+  private readonly freeList: ObjectPool;
 
   constructor(capacity: number, sharedBuffer?: SharedArrayBuffer) {
     this.buffer = sharedBuffer
       ? new Float32Array(sharedBuffer, 0, capacity * AABB_STRIDE)
       : new Float32Array(capacity * AABB_STRIDE);
+    this.freeList = new ObjectPool(capacity);
+    // Start with an empty free-list — slots are added via release().
+    // ObjectPool initialises fully available, so we drain it immediately.
+    for (let i = 0; i < capacity; i++) this.freeList.acquire();
   }
 
   /**
@@ -31,11 +39,30 @@ export class AABBPool {
     return { pool: new AABBPool(capacity, sab), sab };
   }
 
-  /** Allocate a new AABB slot and return its index. */
+  /**
+   * Allocate a new AABB slot and return its index.
+   * Prefers a previously released slot from the free-list before bump-allocating.
+   */
   allocate(): number {
+    const recycled = this.freeList.acquire();
+    if (recycled !== null) return recycled;
+    // Bump-allocate a fresh slot.
     const index = this.count;
     this.count += 1;
     return index;
+  }
+
+  /**
+   * Release a previously allocated slot back to the free-list so it can be
+   * reused by the next `allocate()` call.
+   *
+   * The slot's float data is **not** zeroed — callers must overwrite it with
+   * `set()` before using the recycled index.
+   *
+   * @throws RangeError when `index` is out of range or already released.
+   */
+  release(index: number): void {
+    this.freeList.release(index);
   }
 
   /** Set the bounds of an AABB at the given index. */
@@ -62,14 +89,20 @@ export class AABBPool {
     return this.buffer[index * AABB_STRIDE + component] ?? 0;
   }
 
-  /** Returns the number of allocated AABBs. */
+  /**
+   * Returns the number of bump-allocated AABB slots.
+   * Note: slots returned via `release()` are not subtracted from this count;
+   * use `freeList.available` for an exact live-object count.
+   */
   get size(): number {
     return this.count;
   }
 
-  /** Reset the pool (all allocations freed, no GC). */
+  /** Reset the pool: clears both the bump counter and the free-list. */
   reset(): void {
     this.count = 0;
+    // Drain any pending free-list entries so the pool looks freshly constructed.
+    while (this.freeList.acquire() !== null) {/* drain */ }
   }
 }
 

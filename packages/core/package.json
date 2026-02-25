@@ -1,6 +1,6 @@
 {
   "name": "@spatial-engine/core",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "High-performance spatial partitioning and query library using Data-Oriented Design",
   "author": "Francisco Rueda Esquivel",
   "license": "MIT",

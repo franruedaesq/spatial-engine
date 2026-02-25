@@ -38,7 +38,7 @@ function aabbOverlapsBox(
 export class Octree {
   private readonly nodePool: OctreeNodePool;
   private readonly aabbPool: AABBPool;
-  private readonly root: number;
+  private root: number;
   /** Tracks which node each object (by AABBPool index) is currently stored in. */
   private readonly objectNodeMap: Map<number, number> = new Map();
   /** Pre-allocated traversal stack reused across raycast calls to avoid GC pressure. */
@@ -65,6 +65,24 @@ export class Octree {
     maxZ: number,
   ): void {
     this.nodePool.setAABB(this.root, minX, minY, minZ, maxX, maxY, maxZ);
+  }
+
+  /**
+   * Reset the octree to its post-construction state.
+   *
+   * Frees every node and object from both the node and AABB pools, clears the
+   * internal object-to-node map, and re-allocates a fresh root node.
+   *
+   * **Warning**: this also calls `aabbPool.reset()`, which invalidates _all_
+   * existing AABBPool indices — including any held by live synchronizers.
+   * Only call this during a full scene teardown, never while other objects
+   * still hold references to AABBPool slots.
+   */
+  clear(): void {
+    this.nodePool.reset();
+    this.aabbPool.reset();
+    this.objectNodeMap.clear();
+    this.root = this.nodePool.allocate();
   }
 
   /** Insert the AABB at `objectIndex` (in the AABBPool) into the tree. */
